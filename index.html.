@@ -1,0 +1,93 @@
+
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Uji Kamera</title>
+<style>
+body {
+  font-family: Arial;
+  background: #171717;
+  color: white;
+  text-align: center;
+  padding: 24px;
+}
+button {
+  padding: 14px 22px;
+  border: 0;
+  border-radius: 8px;
+  background: #2878e8;
+  color: white;
+  font-size: 16px;
+}
+video, canvas {
+  width: 100%;
+  max-width: 360px;
+  border-radius: 12px;
+}
+</style>
+</head>
+<body>
+
+<h2>Uji Kamera Depan</h2>
+
+<p>
+Dengan melanjutkan, Anda menyetujui pengambilan
+foto wajah dan pengirimannya ke pemilik link.
+</p>
+
+<button id="start">Setuju & Mulai</button>
+
+<p id="status">Menunggu persetujuan.</p>
+<video id="video" autoplay playsinline muted></video>
+<canvas id="canvas" hidden></canvas>
+
+<script>
+const video = document.getElementById("video");
+const canvas = document.getElementById("canvas");
+const statusText = document.getElementById("status");
+
+document.getElementById("start").onclick = async () => {
+  try {
+    statusText.textContent = "Meminta izin kamera...";
+
+    const stream =
+      await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "user" },
+        audio: false
+      });
+
+    video.srcObject = stream;
+    await video.play();
+
+    statusText.textContent = "Mengambil foto...";
+
+    await new Promise(resolve =>
+      setTimeout(resolve, 2000)
+    );
+
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+
+    canvas.getContext("2d").drawImage(
+      video, 0, 0
+    );
+
+    canvas.hidden = false;
+    statusText.textContent =
+      "Foto berhasil diambil.";
+
+    stream.getTracks().forEach(track =>
+      track.stop()
+    );
+
+  } catch (error) {
+    statusText.textContent =
+      "Kamera gagal: " + error.message;
+  }
+};
+</script>
+
+</body>
+</html>

